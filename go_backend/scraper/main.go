@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"sync"
 	time "time"
 )
 
@@ -41,7 +42,7 @@ type SearchResponse struct {
 }
 
 type JobChange struct {
-	FullDocument Job `bson:"fullDocument,omitempty"`
+	FullDocument  Job    `bson:"fullDocument,omitempty"`
 	OperationType string `bson:"operationType,omitempty"`
 }
 
@@ -73,19 +74,32 @@ func monitorJobsCollectionChanges(jobs JobsController) {
 		if e := stream.Decode(&changeDoc); e != nil {
 			log.Printf("error decoding: %s", e)
 		}
-		println("MongoDB new update: ", changeDoc.OperationType, " id: ", changeDoc.FullDocument.ID.Hex())
-		jobs.jobs[changeDoc.FullDocument.ID] = changeDoc.FullDocument
+		job := changeDoc.FullDocument
+		println("MongoDB new update: ", changeDoc.OperationType, " id: ", job.ID.Hex())
+
+		if changeDoc.OperationType != "insert" || changeDoc.OperationType != "insert" {
+			continue
+		}
+
+		jobs.lock.Lock()
+		if job, exists := jobs.jobs[job.ID]; exists {
+			jobs.scheduler.RemoveByReference(job.cronJob)
+		}
+		job.schedule(jobs.scheduler)
+		jobs.jobs[job.ID] = job
+		jobs.lock.Unlock()
 	}
 }
 
 type JobsController struct {
-	jobs map[primitive.ObjectID]Job
+	jobs      map[primitive.ObjectID]Job
+	lock sync.Mutex
 	scheduler *gocron.Scheduler
 }
 
 func initJobs() JobsController {
 	jobsController := JobsController{
-		jobs: make(map[primitive.ObjectID]Job),
+		jobs:      make(map[primitive.ObjectID]Job),
 		scheduler: gocron.NewScheduler(time.UTC),
 	}
 
@@ -99,7 +113,7 @@ func (jobsController JobsController) scheduleJobs() {
 	for _, job := range jobsController.jobs {
 		job.schedule(jobsController.scheduler)
 	}
-	jobsController.scheduler.StartAsync()
+	go jobsController.scheduler.StartAsync()
 }
 
 func (jobsController JobsController) loadFromDatabase() {
@@ -123,7 +137,7 @@ func prettify(input interface{}) string {
 }
 
 func (j Job) schedule(s *gocron.Scheduler) {
-	task := s.Every(j.Schedule.Interval).Seconds()
+	task := s.Every(time.Duration(j.Schedule.Interval) * time.Second)
 	if j.Schedule.StartAt != 0 {
 		task = task.StartAt(time.Unix(j.Schedule.StartAt, 0))
 	}
@@ -131,7 +145,7 @@ func (j Job) schedule(s *gocron.Scheduler) {
 	panicIfError(err)
 	j.cronJob = job
 }
-//
+
 func handleJob(job Job) {
 	request := job.Request
 	now := time.Now().Unix()
@@ -147,15 +161,14 @@ func handleJob(job Job) {
 	response := SearchResponse{
 		Url:         request.Url,
 		TimeScraped: now,
-		Data:        map[string]interface{}{"1234": "1234"},
+		Data:        string(bodyBytes),
 	}
 
-	insertResult, err := jobsCollection.InsertOne(nil, response)
+	insertResult, err := responseCollection.InsertOne(nil, response)
 	fmt.Println(insertResult.InsertedID)
 
 	panicIfError(err)
 	println("success")
-
 }
 
 func panicIfError(err error) {
