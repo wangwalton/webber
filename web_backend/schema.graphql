@@ -1,0 +1,60 @@
+type Query {
+  getMyJobs: [Job!]!
+}
+
+type Mutation {
+  createJob(job: JobInput): Boolean!
+  updateJob(job: JobInput): Boolean!
+}
+
+type Job {
+  _id: ID!
+  request: Request!
+  schedule: Schedule!
+  userID: ID!
+}
+
+type Request {
+  url: String!
+  method: HTTPMethod!
+  headers: [Header!]
+}
+
+type Schedule {
+  interval: Int! # Unix UTC timestamp
+  startAt: Int # Unix UTC timestamp
+}
+
+# Make this into json serialized?
+type Header {
+  key: String!
+  value: String!
+}
+
+input JobInput {
+  _id: ID
+  request: RequestInput!
+  schedule: ScheduleInput!
+  userID: ID
+}
+
+input ScheduleInput {
+  interval: Int! # Unix UTC timestamp
+  startAt: Int # Unix UTC timestamp
+}
+
+input RequestInput {
+  url: String!
+  method: HTTPMethod!
+  headers: [HeaderInput!]
+}
+
+input HeaderInput {
+  key: String!
+  value: String!
+}
+
+enum HTTPMethod {
+  GET
+  POST
+}
