@@ -1,0 +1,7 @@
+ops/mongo/rs0/*
+ops/mongo/rs1/*
+ops/mongo/rs2/*
+ops/mongo/logs/*d
+
+.DS_Store
+**/.idea/*
