@@ -1,5 +1,7 @@
 type Query {
   getMyJobs: [Job!]!
+
+  getJobResponses(jobID: ID!): [JobResponse!]!
 }
 
 type Mutation {
@@ -57,4 +59,11 @@ input HeaderInput {
 enum HTTPMethod {
   GET
   POST
+}
+
+type JobResponse {
+  jobID: ID!
+  url: String!
+  timescraped: Int!
+  data: String
 }

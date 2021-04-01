@@ -12,9 +12,12 @@ import cors from "cors";
 dotenv.config();
 const MONGO_URL = process.env.MONGO_URL;
 
-const mongoClient = await MongoClient.connect(MONGO_URL, {});
+const mongoClient = await MongoClient.connect(MONGO_URL, {
+  useUnifiedTopology: true,
+});
 const db = mongoClient.db("webber");
 const jobs = db.collection("jobs");
+const responses = db.collection("responses");
 
 const typeDefs = readFileSync("./schema.graphql").toString("utf-8");
 
@@ -23,6 +26,18 @@ const resolvers = {
     getMyJobs: async () => {
       console.log("getMyjobs:");
       const res = await jobs.find().toArray();
+      console.log(res);
+      return res;
+    },
+
+    getJobResponses: async (_, { jobID }) => {
+      jobID = new ObjectID(jobID);
+      console.log("getJobResponse: ", { jobID });
+      const res = await responses.find({ jobID }).toArray();
+      console.log(res);
+      res.map((el) => {
+        el.data = JSON.stringify(el.data);
+      });
       console.log(res);
       return res;
     },

@@ -35,10 +35,11 @@ type Schedule struct {
 	StartAt  int64 `bson:"startAt,omitempty"`  // Unix UTC timestamp
 }
 
-type SearchResponse struct {
-	Url         string      `bson:"url,omitempty"`
-	TimeScraped int64       `bson:"timeScraped,omitempty"`
-	Data        interface{} `bson:"data,omitempty"`
+type JobResponse struct {
+	JobID       primitive.ObjectID     `bson:"jobID,omitempty"`
+	Url         string                 `bson:"url,omitempty"`
+	TimeScraped int64                  `bson:"timescraped,omitempty"`
+	Data        map[string]interface{} `bson:"data,omitempty"`
 }
 
 type JobChange struct {
@@ -93,7 +94,7 @@ func monitorJobsCollectionChanges(jobs JobsController) {
 
 type JobsController struct {
 	jobs      map[primitive.ObjectID]Job
-	lock sync.Mutex
+	lock      sync.Mutex
 	scheduler *gocron.Scheduler
 }
 
@@ -158,10 +159,13 @@ func handleJob(job Job) {
 		println(resp.StatusCode)
 		println(string(bodyBytes))
 	}
-	response := SearchResponse{
+	response := JobResponse{
+		JobID:       job.ID,
 		Url:         request.Url,
 		TimeScraped: now,
-		Data:        string(bodyBytes),
+		Data: map[string]interface{}{
+			"rawData": string(bodyBytes)[0:100],
+		},
 	}
 
 	insertResult, err := responseCollection.InsertOne(nil, response)

@@ -1,5 +1,7 @@
 import Head from "next/head";
 import styles from "../styles/Home.module.css";
+import Link from "next/link";
+
 import {
   ApolloClient,
   InMemoryCache,
@@ -44,6 +46,11 @@ export default function Home() {
       <tr key={job._id}>
         <th>{job.request.url}</th>
         <th>{job.schedule.interval} </th>
+        <th>
+          <Link href={`/job/${job._id}`}>
+            <a>Details</a>
+          </Link>
+        </th>
       </tr>
     );
   };
@@ -111,6 +118,7 @@ export default function Home() {
                 <tr>
                   <th>URL</th>
                   <th>Every X Seconds:</th>
+                  <th>Details:</th>
                 </tr>
               </thead>
               <tbody>
