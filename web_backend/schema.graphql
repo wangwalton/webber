@@ -5,8 +5,9 @@ type Query {
 }
 
 type Mutation {
-  createJob(job: JobInput): Boolean!
+  createJob(job: JobInput): ID!
   updateJob(job: JobInput): Boolean!
+  deleteJob(jobID: ID!): Boolean!
 }
 
 type Job {

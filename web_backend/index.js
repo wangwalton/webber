@@ -49,10 +49,10 @@ const resolvers = {
       job.userID = new ObjectID();
       try {
         const res = await jobs.insertOne(job);
-        return true;
+        return job._id;
       } catch (err) {
         console.log(err);
-        return false;
+        return "";
       }
     },
     updateJob: async (_, { job }) => {
@@ -62,11 +62,22 @@ const resolvers = {
       delete job._id;
       try {
         const res = await jobs.updateOne({ _id }, { $set: job });
-        return true;
       } catch (err) {
         console.log(err);
         return false;
       }
+      return true;
+    },
+    deleteJob: async (_, { jobID }) => {
+      jobID = new ObjectID(jobID);
+      try {
+        await jobs.deleteOne({ _id: jobID });
+        await responses.deleteMany({ jobID: jobID });
+      } catch (err) {
+        console.log(err);
+        return false;
+      }
+      return true;
     },
   },
 };
