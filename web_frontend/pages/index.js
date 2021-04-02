@@ -2,6 +2,11 @@ import Head from "next/head";
 import styles from "../styles/Home.module.css";
 import Link from "next/link";
 
+import "ag-grid-community/dist/styles/ag-grid.css";
+import "ag-grid-community/dist/styles/ag-theme-alpine.css";
+
+import { AgGridColumn, AgGridReact } from "ag-grid-react";
+
 import {
   ApolloClient,
   InMemoryCache,
@@ -37,6 +42,12 @@ const CREATE_JOB = gql`
   }
 `;
 
+const DELETE_JOB = gql`
+  mutation DeleteJob($jobID: ID!) {
+    deleteJob(jobID: $jobID)
+  }
+`;
+
 export default function Home() {
   const { loading, error, data } = useQuery(GET_MY_JOBS);
   //console.log({ loading, data });
@@ -51,25 +62,25 @@ export default function Home() {
             <a>Details</a>
           </Link>
         </th>
+        <th>
+          <button onClick={deleteJob}>Delete Job</button>
+        </th>
       </tr>
     );
   };
 
-  const [createJob, response] = useMutation(CREATE_JOB);
-  //console.log("Create response: ", response.data);
+  const [createJob] = useMutation(CREATE_JOB);
+  const [deleteJob] = useMutation(DELETE_JOB);
 
   const { register, handleSubmit, watch, errors } = useForm();
   const onSubmit = (data) => {
-    //console.log("hi", data);
     try {
       createJob({
         variables: {
           input: data,
         },
       });
-    } catch (e) {
-      //console.log(e);
-    }
+    } catch (e) {}
   };
 
   return (
@@ -119,6 +130,7 @@ export default function Home() {
                   <th>URL</th>
                   <th>Every X Seconds:</th>
                   <th>Details:</th>
+                  <th>Delete Job:</th>
                 </tr>
               </thead>
               <tbody>
