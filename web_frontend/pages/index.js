@@ -47,7 +47,6 @@ export default function Home() {
   const { loading, error, data, refetch } = useQuery(GET_MY_JOBS);
   const [deleteJob] = useMutation(DELETE_JOB, {
     onCompleted: () => {
-      console.log("hi");
       refetch();
     },
   });
@@ -100,9 +99,7 @@ export default function Home() {
               <th>Delete Job:</th>
             </tr>
           </thead>
-          <tbody>
-            {!loading && data.getMyJobs.map((job) => getJobHTML(job))}
-          </tbody>
+          <tbody>{data && data.getMyJobs.map((job) => getJobHTML(job))}</tbody>
         </table>
       </main>
     </div>

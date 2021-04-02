@@ -25,7 +25,6 @@ const CREATE_JOB = gql`
 const JobForm = ({ refetchJobs }) => {
   const [createJob] = useMutation(CREATE_JOB, {
     onCompleted: () => {
-      console.log("hi");
       refetchJobs();
     },
   });
