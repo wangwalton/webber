@@ -2,17 +2,14 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/go-co-op/gocron"
-	"go.mongodb.org/mongo-driver/bson"
+	"github.com/spf13/viper"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"io/ioutil"
-	"log"
 	"net/http"
-	"sync"
 	time "time"
 )
 
@@ -47,94 +44,27 @@ type JobChange struct {
 	OperationType string `bson:"operationType,omitempty"`
 }
 
-var jobsCollection *mongo.Collection
 var responseCollection *mongo.Collection
 
 func main() {
+	configSetup()
+	mongoUrl := viper.Get("mongo_url").(string)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017,127.0.0.1:27018/?replicaSet=rs0"))
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoUrl))
 	panicIfError(err)
 
 	database := client.Database("webber")
-	jobsCollection = database.Collection("jobs")
+	jobsCollection := database.Collection("jobs")
 	responseCollection = database.Collection("responses")
 
-	jobs := initJobs()
-	monitorJobsCollectionChanges(jobs)
+	_ = initJobsController(jobsCollection)
+
+	sleepForever()
 }
 
-func monitorJobsCollectionChanges(jobs JobsController) {
-	streamOptions := options.ChangeStream().SetFullDocument(options.UpdateLookup)
-	stream, err := jobsCollection.Watch(nil, mongo.Pipeline{}, streamOptions)
-	panicIfError(err)
-
-	println("Monitoring for mongodb changes...")
-	var changeDoc JobChange
-	for stream.Next(nil) {
-		if e := stream.Decode(&changeDoc); e != nil {
-			log.Printf("error decoding: %s", e)
-		}
-		job := changeDoc.FullDocument
-		println("MongoDB new update: ", changeDoc.OperationType, " id: ", job.ID.Hex())
-
-		if changeDoc.OperationType != "insert" || changeDoc.OperationType != "insert" {
-			continue
-		}
-
-		jobs.lock.Lock()
-		if job, exists := jobs.jobs[job.ID]; exists {
-			jobs.scheduler.RemoveByReference(job.cronJob)
-		}
-		job.schedule(jobs.scheduler)
-		jobs.jobs[job.ID] = job
-		jobs.lock.Unlock()
-	}
-}
-
-type JobsController struct {
-	jobs      map[primitive.ObjectID]Job
-	lock      sync.Mutex
-	scheduler *gocron.Scheduler
-}
-
-func initJobs() JobsController {
-	jobsController := JobsController{
-		jobs:      make(map[primitive.ObjectID]Job),
-		scheduler: gocron.NewScheduler(time.UTC),
-	}
-
-	jobsController.loadFromDatabase()
-	jobsController.scheduleJobs()
-
-	return jobsController
-}
-
-func (jobsController JobsController) scheduleJobs() {
-	for _, job := range jobsController.jobs {
-		job.schedule(jobsController.scheduler)
-	}
-	go jobsController.scheduler.StartAsync()
-}
-
-func (jobsController JobsController) loadFromDatabase() {
-	var jobs []Job
-	cursor, err := jobsCollection.Find(nil, bson.D{})
-	panicIfError(err)
-
-	err = cursor.All(nil, &jobs)
-	panicIfError(err)
-
-	fmt.Println("Loaded jobs: ", jobs)
-	for _, job := range jobs {
-		jobsController.jobs[job.ID] = job
-	}
-}
-
-func prettify(input interface{}) string {
-	b, err := json.MarshalIndent(input, "", "  ")
-	panicIfError(err)
-	return string(b)
+func sleepForever() {
+	select {}
 }
 
 func (j Job) schedule(s *gocron.Scheduler) {
