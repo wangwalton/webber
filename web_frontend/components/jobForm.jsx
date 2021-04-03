@@ -1,4 +1,6 @@
 import 'ag-grid-community/dist/styles/ag-grid.css'
+import React from 'react'
+
 import 'ag-grid-community/dist/styles/ag-theme-alpine.css'
 
 import {
@@ -9,7 +11,13 @@ import { useForm } from 'react-hook-form'
 
 const CREATE_JOB = gql`
   mutation CreateJob($input: JobInput!) {
-    createJob(job: $input)
+    createJob(job: $input) {
+      _id
+      errors {
+        field   
+        message
+      }
+    }
   }
 `
 
@@ -20,7 +28,7 @@ const JobForm = ({ refetchJobs }) => {
     }
   })
 
-  const { register, handleSubmit, watch, errors } = useForm()
+  const { register, handleSubmit, _, errors } = useForm()
   console.log(errors)
   const onSubmit = (data) => {
     console.log(123)
@@ -36,7 +44,7 @@ const JobForm = ({ refetchJobs }) => {
   }
 
   const validURL = (str) => {
-    const pattern = new RegExp('^(https?:\\/\\/)?' + // protocol
+    const pattern = new RegExp('^https?:\\/\\/' + // protocol
             '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|' + // domain name
             '((\\d{1,3}\\.){3}\\d{1,3}))' + // OR ip (v4) address
             '(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*' + // port and path
@@ -51,7 +59,7 @@ const JobForm = ({ refetchJobs }) => {
         required: true,
         validate: validURL
       })} />
-        {errors?.request?.url && (<p>Not a valid URL</p>)}
+        {errors?.request?.url && (<p style={{ color: 'red' }}>Not a valid URL</p>)}
       <select name="request.method" ref={register({ required: true })}>
         <option value="GET">GET</option>
         <option value="POST">POST</option>
@@ -64,7 +72,7 @@ const JobForm = ({ refetchJobs }) => {
         placeholder={1}
         ref={register({ valueAsNumber: true, required: true, min: 300 })}
       />
-        {errors?.schedule?.interval && (<p>miniumum is 300 seconds</p>)}
+        {errors?.schedule?.interval && (<p style={{ color: 'red' }}>miniumum is 300 seconds</p>)}
       <br></br>
       <label htmlFor="schedule.startAt">Start At (Unix Timestamp): </label>
       <input

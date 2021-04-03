@@ -1,21 +1,17 @@
-import Head from "next/head";
-import styles from "../styles/Home.module.css";
-import Link from "next/link";
-import JobForm from "../components/jobForm";
+import Head from 'next/head'
+import styles from '../styles/Home.module.css'
+import Link from 'next/link'
+import JobForm from '../components/jobForm'
+import React from 'react'
 
-import "ag-grid-community/dist/styles/ag-grid.css";
-import "ag-grid-community/dist/styles/ag-theme-alpine.css";
-
-import { AgGridColumn, AgGridReact } from "ag-grid-react";
+import 'ag-grid-community/dist/styles/ag-grid.css'
+import 'ag-grid-community/dist/styles/ag-theme-alpine.css'
 
 import {
-  ApolloClient,
-  InMemoryCache,
   gql,
   useQuery,
-  useMutation,
-} from "@apollo/client";
-import { useForm } from "react-hook-form";
+  useMutation
+} from '@apollo/client'
 
 const GET_MY_JOBS = gql`
   {
@@ -35,28 +31,28 @@ const GET_MY_JOBS = gql`
       }
     }
   }
-`;
+`
 
 const DELETE_JOB = gql`
   mutation DeleteJob($jobID: ID!) {
     deleteJob(jobID: $jobID)
   }
-`;
+`
 
-export default function Home() {
-  const { loading, error, data, refetch } = useQuery(GET_MY_JOBS);
+export default function Home () {
+  const { loading, error, data, refetch } = useQuery(GET_MY_JOBS)
   const [deleteJob] = useMutation(DELETE_JOB, {
     onCompleted: () => {
-      refetch();
-    },
-  });
+      refetch()
+    }
+  })
   const deleteJobFactory = (jobID) => {
     return () => {
       deleteJob({
-        variables: { jobID },
-      });
-    };
-  };
+        variables: { jobID }
+      })
+    }
+  }
 
   const getJobHTML = (job) => {
     return (
@@ -72,8 +68,8 @@ export default function Home() {
           <button onClick={deleteJobFactory(job._id)}>Delete Job</button>
         </th>
       </tr>
-    );
-  };
+    )
+  }
 
   return (
     <div className={styles.container}>
@@ -103,5 +99,5 @@ export default function Home() {
         </table>
       </main>
     </div>
-  );
+  )
 }

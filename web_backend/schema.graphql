@@ -5,8 +5,8 @@ type Query {
 }
 
 type Mutation {
-  createJob(job: JobInput): ID!
-  updateJob(job: JobInput): Boolean!
+  createJob(job: JobInput): JobMutationResponse!
+  updateJob(job: JobInput): JobMutationResponse!
   deleteJob(jobID: ID!): Boolean!
 }
 
@@ -32,6 +32,16 @@ type Schedule {
 type Header {
   key: String!
   value: String!
+}
+
+type JobMutationResponse {
+  _id: ID
+  errors: [Error!]
+}
+
+type Error {
+  field: String!
+  message: String!
 }
 
 input JobInput {
