@@ -2,35 +2,21 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"github.com/go-co-op/gocron"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog/pkgerrors"
 	"github.com/spf13/viper"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"io/ioutil"
 	"net/http"
+	"os"
 	time "time"
 )
 
-type Job struct {
-	ID       primitive.ObjectID `bson:"_id,omitempty"`
-	Request  Request            `bson:"request,omitempty"`
-	Schedule Schedule           `bson:"schedule,omitempty"`
-	UserID   primitive.ObjectID `bson:"userID,omitempty"`
-	cronJob  *gocron.Job
-}
 
-type Request struct {
-	Url     string            `bson:"url,omitempty"`
-	Method  string            `bson:"method,omitempty"`
-	Headers map[string]string `bson:"headers,omitempty"`
-}
-
-type Schedule struct {
-	Interval int64 `bson:"interval,omitempty"` // Unix UTC timestamp
-	StartAt  int64 `bson:"startAt,omitempty"`  // Unix UTC timestamp
-}
 
 type JobResponse struct {
 	JobID       primitive.ObjectID     `bson:"jobID,omitempty"`
@@ -39,14 +25,13 @@ type JobResponse struct {
 	Data        map[string]interface{} `bson:"data,omitempty"`
 }
 
-type JobChange struct {
-	FullDocument  Job    `bson:"fullDocument,omitempty"`
-	OperationType string `bson:"operationType,omitempty"`
-}
 
 var responseCollection *mongo.Collection
 
 func main() {
+	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+
 	configSetup()
 	mongoUrl := viper.Get("mongo_url").(string)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -85,29 +70,30 @@ func handleJob(job Job) {
 
 	defer resp.Body.Close()
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
-	if resp.StatusCode != 200 {
-		println(resp.StatusCode)
-		println(string(bodyBytes))
+	if err != nil {
+		log.Error().Stack().Err(err).Msg("Can't read response")
 	}
+
 	response := JobResponse{
 		JobID:       job.ID,
 		Url:         request.Url,
 		TimeScraped: now,
 		Data: map[string]interface{}{
 			"rawData": string(bodyBytes)[0:100],
+			"statusCode": resp.StatusCode,
 		},
 	}
 
 	insertResult, err := responseCollection.InsertOne(nil, response)
-	fmt.Println(insertResult.InsertedID)
-
-	panicIfError(err)
-	println("success")
+	insertedID := insertResult.InsertedID.(primitive.ObjectID)
+	log.Info().Str("insertedID", insertedID.Hex()).Msg("inserted job response")
+	if err != nil {
+		log.Error().Stack().Err(err).Msg("Can't read response")
+	}
 }
 
 func panicIfError(err error) {
 	if err != nil {
-		println(err)
-		panic(err)
+		log.Fatal().AnErr("err", err)
 	}
 }

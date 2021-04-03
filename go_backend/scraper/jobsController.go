@@ -1,13 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"github.com/go-co-op/gocron"
+	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"log"
 	"sync"
 	"time"
 )
@@ -17,6 +16,29 @@ type JobsController struct {
 	lock       sync.Mutex
 	scheduler  *gocron.Scheduler
 	collection *mongo.Collection
+}
+type Job struct {
+	ID       primitive.ObjectID `bson:"_id,omitempty"`
+	Request  Request            `bson:"request,omitempty"`
+	Schedule Schedule           `bson:"schedule,omitempty"`
+	UserID   primitive.ObjectID `bson:"userID,omitempty"`
+	cronJob  *gocron.Job
+}
+
+type Request struct {
+	Url     string            `bson:"url,omitempty"`
+	Method  string            `bson:"method,omitempty"`
+	Headers map[string]string `bson:"headers,omitempty"`
+}
+
+type Schedule struct {
+	Interval int64 `bson:"interval,omitempty"` // Unix UTC timestamp
+	StartAt  int64 `bson:"startAt,omitempty"`  // Unix UTC timestamp
+}
+
+type JobChange struct {
+	FullDocument  Job    `bson:"fullDocument,omitempty"`
+	OperationType string `bson:"operationType,omitempty"`
 }
 
 func initJobsController(jobsCollection *mongo.Collection) JobsController {
@@ -34,32 +56,42 @@ func initJobsController(jobsCollection *mongo.Collection) JobsController {
 	return jobsController
 }
 
-func (jobs JobsController) monitorJobsCollectionChanges() {
+func (jobsController JobsController) monitorJobsCollectionChanges() {
 	streamOptions := options.ChangeStream().SetFullDocument(options.UpdateLookup)
-	stream, err := jobs.collection.Watch(nil, mongo.Pipeline{}, streamOptions)
+	stream, err := jobsController.collection.Watch(nil, mongo.Pipeline{}, streamOptions)
 	panicIfError(err)
 
-	println("Monitoring for mongodb changes...")
+	log.Info().Msg("Monitoring for mongodb changes...")
 	go func() {
 		var changeDoc JobChange
 		for stream.Next(nil) {
 			if e := stream.Decode(&changeDoc); e != nil {
-				log.Printf("error decoding: %s", e)
-			}
-			job := changeDoc.FullDocument
-			println("MongoDB new update: ", changeDoc.OperationType, " id: ", job.ID.Hex())
-
-			if changeDoc.OperationType != "insert" || changeDoc.OperationType != "insert" {
+				log.Error().Err(e).Msg("error decoding mongodb document")
 				continue
 			}
+			job := changeDoc.FullDocument
+			log.Info().
+				Str("operationType", changeDoc.OperationType).
+				Str("_id", job.ID.Hex()).
+				Msg("MongoDB jobs update")
 
-			jobs.lock.Lock()
-			if job, exists := jobs.jobs[job.ID]; exists {
-				jobs.scheduler.RemoveByReference(job.cronJob)
+			jobsController.lock.Lock()
+
+			// We delete the job on any new updates
+			if job, exists := jobsController.jobs[job.ID]; exists {
+				jobsController.scheduler.RemoveByReference(job.cronJob)
 			}
-			job.schedule(jobs.scheduler)
-			jobs.jobs[job.ID] = job
-			jobs.lock.Unlock()
+			delete(jobsController.jobs, job.ID)
+
+			if changeDoc.OperationType == "insert" ||
+				changeDoc.OperationType == "update" ||
+				changeDoc.OperationType == "replace" {
+
+				jobsController.jobs[job.ID] = job
+				job.schedule(jobsController.scheduler)
+			}
+			jobsController.lock.Unlock()
+
 		}
 	}()
 }
@@ -72,7 +104,7 @@ func (jobsController JobsController) loadFromDatabase() {
 	err = cursor.All(nil, &jobs)
 	panicIfError(err)
 
-	fmt.Println("Loaded jobs: ", jobs)
+	log.Info().Int("numJobsLoaded", len(jobs)).Msg("Loaded jobs")
 
 	jobsController.lock.Lock()
 	for _, job := range jobs {
