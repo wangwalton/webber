@@ -20,10 +20,7 @@ const GET_MY_JOBS = gql`
       request {
         url
         method
-        headers {
-          key
-          value
-        }
+        headers
       }
       schedule {
         interval

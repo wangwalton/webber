@@ -28,6 +28,8 @@ type JobResponse struct {
 
 var responseCollection *mongo.Collection
 
+var hostIP = getIP()
+
 func main() {
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
@@ -81,6 +83,7 @@ func handleJob(job Job) {
 		Data: map[string]interface{}{
 			"rawData": string(bodyBytes)[0:100],
 			"statusCode": resp.StatusCode,
+			"hostIP": hostIP,
 		},
 	}
 

@@ -77,8 +77,17 @@ const JobForm = ({ refetchJobs }) => {
       <label htmlFor="schedule.startAt">Start At (Unix Timestamp): </label>
       <input
         name="schedule.startAt"
+        type="number"
         placeholder={1}
         ref={register({ valueAsNumber: true })}
+      />
+      <br></br>
+
+      <label htmlFor="childRequest.urlRegex">Child Requests Regex: </label>
+      <input
+        name="childRequest.urlRegex"
+        placeholder="URL regex to crawl"
+        ref={register()}
       />
       <br></br>
       <input type="submit" />

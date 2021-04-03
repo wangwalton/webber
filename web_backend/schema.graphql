@@ -13,25 +13,26 @@ type Mutation {
 type Job {
   _id: ID!
   request: Request!
+  childRequest: AbstractRequest
   schedule: Schedule!
   userID: ID!
 }
 
 type Request {
   url: String!
-  method: HTTPMethod!
-  headers: [Header!]
+  method: HTTPMethod
+  headers: String
+}
+
+type AbstractRequest {
+  urlRegex: String!
+  method: HTTPMethod
+  headers: String
 }
 
 type Schedule {
   interval: Int! # Unix UTC timestamp
   startAt: Int # Unix UTC timestamp
-}
-
-# Make this into json serialized?
-type Header {
-  key: String!
-  value: String!
 }
 
 type JobMutationResponse {
@@ -47,8 +48,15 @@ type Error {
 input JobInput {
   _id: ID
   request: RequestInput!
+  childRequest: AbstractRequestInput
   schedule: ScheduleInput!
   userID: ID
+}
+
+input AbstractRequestInput {
+  urlRegex: String!
+  method: HTTPMethod
+  headers: String
 }
 
 input ScheduleInput {
@@ -59,12 +67,7 @@ input ScheduleInput {
 input RequestInput {
   url: String!
   method: HTTPMethod!
-  headers: [HeaderInput!]
-}
-
-input HeaderInput {
-  key: String!
-  value: String!
+  headers: String
 }
 
 enum HTTPMethod {

@@ -6,9 +6,15 @@ const jobSchema = Joi.object({
 
   request: Joi.object({
     url: Joi.string().required().uri(),
-    method: Joi.string().valid('GET', 'POST').required(),
+    method: Joi.string().valid('GET', 'POST'),
     headers: Joi.object(),
   }).required(),
+
+  childRequest: Joi.object({
+    urlRegex: Joi.string(),
+    method: Joi.string().valid('GET', 'POST'),
+    headers: Joi.object(),
+  }),
 
   schedule: Joi.object({
     interval: Joi.number().min(300).required(),
