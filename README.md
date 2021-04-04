@@ -6,4 +6,9 @@ export WEBBER_HOME=$(pwd)
 
 ## DO NOT MAKE THIS REPO PUBLIC UNLESS
 
-- changing `go_backend/scraper/prodConfig.yaml`
+- `go_backend/scraper/prodConfig.yaml`
+- `web_backend/selfsigned.*`
+
+## Certicates
+
+`sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout ./selfsigned.key -out selfsigned.crt`

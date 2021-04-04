@@ -8,6 +8,9 @@ import MONGODB from 'mongodb'
 import dotenv from 'dotenv'
 import cors from 'cors'
 import {jobSchema} from "./jobSchema.js";
+import https from "https";
+import fs from "fs";
+
 const { MongoClient, ObjectID } = MONGODB
 
 dotenv.config()
@@ -103,12 +106,23 @@ const resolvers = {
   },
 }
 
-const server = new ApolloServer({ typeDefs, resolvers })
+const graphqlServer = new ApolloServer({ typeDefs, resolvers })
 
 const app = express()
 app.use(cors())
-server.applyMiddleware({ app })
+graphqlServer.applyMiddleware({ app })
 
-app.listen({ port: process.env.PORT }, () =>
-  console.log(`🚀 Server ready at http://localhost:${process.env.PORT}${server.graphqlPath}`),
-)
+if (process.env.NODE_ENV == 'production') {
+  const options = {
+    key: fs.readFileSync('./selfsigned.key'),
+    cert: fs.readFileSync('./selfsigned.crt'),
+  };
+  const server = https.createServer(options, app);
+  server.listen({port: process.env.PORT}, () => {
+    console.log(`🚀 Server ready at https://localhost:${process.env.PORT}${graphqlServer.graphqlPath}`)
+  });
+} else {
+  app.listen({port: process.env.PORT}, () =>
+    console.log(`🚀 Server ready at http://localhost:${process.env.PORT}${graphqlServer.graphqlPath}`),
+  )
+}
