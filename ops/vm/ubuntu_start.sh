@@ -16,9 +16,9 @@ npm install pm2 -g
 
 git clone git@github.com:wangwalton/webber.git
 
-# MANUAL: copy over .env.prod to .env
 
 # Frontend
+# MANUAL: copy over .env.local to .env.local
 # Open up port 80
 sudo apt-get install authbind
 sudo touch /etc/authbind/byport/80
@@ -27,4 +27,19 @@ sudo chmod 755 /etc/authbind/byport/80
 echo "alias pm2='authbind --deep pm2'" >> ~/.bashrc
 source ~/.bashrc
 
-# ubuntu  ALL=(ALL:ALL) ALL
+pm2 start yarn --name "nextjs" --time -- start -p 80
+
+
+# Backend
+# MANUAL: copy over .env.prod to .env
+pm2 start --name "node_backend" --time index.js
+
+
+# Go backend
+wget https://golang.org/dl/go1.16.3.linux-amd64.tar.gz
+tar -xzf go1.16.3.linux-amd64.tar.gz
+rm go1.16.3.linux-amd64.tar.gz
+echo "export PATH=\$PATH:~/go/bin" >> ~/.bashrc
+cd ~/webber/go_backend/scraper
+go build
+pm2 start scraper -- --configFile prodConfig.yaml

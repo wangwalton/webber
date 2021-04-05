@@ -12,9 +12,3 @@ export WEBBER_HOME=$(pwd)
 ## Certicates
 
 `sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout ./selfsigned.key -out selfsigned.crt`
-
-## Deployments
-
-```
-pm2 start yarn --name "nextjs" --time -- start -p 80
-```
