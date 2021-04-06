@@ -37,8 +37,13 @@ type Schedule struct {
 }
 
 type JobChange struct {
-	FullDocument  Job    `bson:"fullDocument,omitempty"`
+	FullDocument  *Job    `bson:"fullDocument,omitempty"`
 	OperationType string `bson:"operationType,omitempty"`
+	DocumentKey // Embedded field is flattened during BSON unmarshalling
+}
+
+type DocumentKey struct {
+	ID primitive.ObjectID `bson:"_id,omitempty"`
 }
 
 func initJobsController(jobsCollection *mongo.Collection) JobsController {
@@ -63,8 +68,8 @@ func (jobsController JobsController) monitorJobsCollectionChanges() {
 
 	log.Info().Msg("Monitoring for mongodb changes...")
 	go func() {
-		var changeDoc JobChange
 		for stream.Next(nil) {
+			var changeDoc JobChange // TODO: Move this outside as an optimization?
 			if e := stream.Decode(&changeDoc); e != nil {
 				log.Error().Err(e).Msg("error decoding mongodb document")
 				continue
@@ -72,22 +77,22 @@ func (jobsController JobsController) monitorJobsCollectionChanges() {
 			job := changeDoc.FullDocument
 			log.Info().
 				Str("operationType", changeDoc.OperationType).
-				Str("_id", job.ID.Hex()).
+				Str("_id", changeDoc.ID.Hex()).
 				Msg("MongoDB jobs update")
 
 			jobsController.lock.Lock()
 
 			// We delete the job on any new updates
-			if job, exists := jobsController.jobs[job.ID]; exists {
+			if job, exists := jobsController.jobs[changeDoc.ID]; exists {
 				jobsController.scheduler.RemoveByReference(job.cronJob)
 			}
-			delete(jobsController.jobs, job.ID)
+			delete(jobsController.jobs, changeDoc.ID)
 
 			if changeDoc.OperationType == "insert" ||
 				changeDoc.OperationType == "update" ||
 				changeDoc.OperationType == "replace" {
 
-				jobsController.jobs[job.ID] = job
+				jobsController.jobs[changeDoc.ID] = *job
 				job.schedule(jobsController.scheduler)
 			}
 			jobsController.lock.Unlock()
