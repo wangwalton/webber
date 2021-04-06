@@ -12,7 +12,7 @@ import (
 )
 
 type JobsController struct {
-	jobs       map[primitive.ObjectID]Job
+	jobs       map[primitive.ObjectID]*Job
 	lock       sync.Mutex
 	scheduler  *gocron.Scheduler
 	collection *mongo.Collection
@@ -48,7 +48,7 @@ type DocumentKey struct {
 
 func initJobsController(jobsCollection *mongo.Collection) JobsController {
 	jobsController := JobsController{
-		jobs:       make(map[primitive.ObjectID]Job),
+		jobs:       make(map[primitive.ObjectID]*Job),
 		scheduler:  gocron.NewScheduler(time.UTC),
 		collection: jobsCollection,
 	}
@@ -92,8 +92,9 @@ func (jobsController JobsController) monitorJobsCollectionChanges() {
 				changeDoc.OperationType == "update" ||
 				changeDoc.OperationType == "replace" {
 
-				jobsController.jobs[changeDoc.ID] = *job
-				job.schedule(jobsController.scheduler)
+				jobsController.jobs[changeDoc.ID] = job
+				schedule(jobsController.scheduler, job)
+
 			}
 			jobsController.lock.Unlock()
 
@@ -113,14 +114,15 @@ func (jobsController JobsController) loadFromDatabase() {
 
 	jobsController.lock.Lock()
 	for _, job := range jobs {
-		jobsController.jobs[job.ID] = job
+		jobsController.jobs[job.ID] = &job
 	}
 	jobsController.lock.Unlock()
 }
 
 func (jobsController JobsController) scheduleJobs() {
 	for _, job := range jobsController.jobs {
-		job.schedule(jobsController.scheduler)
+		schedule(jobsController.scheduler, job)
+
 	}
 	go jobsController.scheduler.StartAsync()
 }

@@ -2,6 +2,7 @@ import 'ag-grid-community/dist/styles/ag-grid.css'
 import React from 'react'
 
 import 'ag-grid-community/dist/styles/ag-theme-alpine.css'
+import _ from 'lodash'
 
 import {
   gql,
@@ -31,7 +32,7 @@ const JobForm = ({ refetchJobs }) => {
   const { register, handleSubmit, _, errors } = useForm()
   console.log(errors)
   const onSubmit = (data) => {
-    console.log(123)
+    removeEmptyFields(data)
     try {
       createJob({
         variables: {
@@ -95,4 +96,20 @@ const JobForm = ({ refetchJobs }) => {
   )
 }
 
+function removeEmptyFields (data) {
+  Object.keys(data).forEach(key => {
+    const fieldValue = data[key]
+
+    if (typeof fieldValue === 'object') {
+      removeEmptyFields(fieldValue)
+
+      if (_.isEmpty(fieldValue)) {
+        delete data[key]
+      }
+    }
+    if (fieldValue === '' || fieldValue == null) {
+      delete data[key]
+    }
+  })
+}
 export default JobForm

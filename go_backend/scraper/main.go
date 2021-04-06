@@ -54,7 +54,7 @@ func sleepForever() {
 	select {}
 }
 
-func (j Job) schedule(s *gocron.Scheduler) {
+func schedule(s *gocron.Scheduler, j *Job) {
 	task := s.Every(time.Duration(j.Schedule.Interval) * time.Second)
 	if j.Schedule.StartAt != 0 {
 		task = task.StartAt(time.Unix(j.Schedule.StartAt, 0))
@@ -64,7 +64,7 @@ func (j Job) schedule(s *gocron.Scheduler) {
 	j.cronJob = job
 }
 
-func handleJob(job Job) {
+func handleJob(job *Job) {
 	request := job.Request
 	now := time.Now().Unix()
 	resp, err := http.Get(string(request.Url))
