@@ -59,9 +59,12 @@ const resolvers = {
       console.log(job);
       const {error} = jobSchema.validate(job)
       if (error) {
-        return {
+        const response = {
           errors: parseJoiError(error)
         }
+        console.log(response)
+
+        return response
       }
 
       delete job._id;
@@ -78,17 +81,27 @@ const resolvers = {
       job.userID = new ObjectID()
       const {error} = jobSchema.validate(job)
       if (error) {
-        return false
+        const response = {
+          errors: parseJoiError(error)
+        }
+        console.log(response)
+
+        return response
       }
       const _id = new ObjectID(job._id)
       delete job._id
       try {
         const res = await jobs.updateOne({ _id }, { $set: job })
+        return {_id: job._id};
       } catch (err) {
         console.log(err)
-        return false
+        return {
+          errors: {
+            field: "unknown",
+            message: err,
+          }
+        }
       }
-      return true
     },
     deleteJob: async (_, { jobID }) => {
       jobID = new ObjectID(jobID)
