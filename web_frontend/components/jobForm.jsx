@@ -30,7 +30,7 @@ const JobForm = ({ refetchJobs }) => {
   })
 
   const { register, handleSubmit, _, errors } = useForm()
-  console.log(errors)
+  console.log({ errors })
   const onSubmit = (data) => {
     removeEmptyFields(data)
     try {

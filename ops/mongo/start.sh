@@ -13,7 +13,9 @@ loop(){
   loop $1
 }
 
-mongod --config rs0.conf &
-mongod --config rs1.conf &
-mongod --config rs2.conf &
+MONGO_HOME=$WEBBER_HOME/ops/mongo
+
+(mongod --config $MONGO_HOME/rs0.conf --dbpath $MONGO_HOME/rs0 &) | (sed -e 's/^/Mongo #1: /;' &)
+(mongod --config $MONGO_HOME/rs1.conf --dbpath $MONGO_HOME/rs1 &) | (sed -e 's/^/Mongo #2: /;' &)
+(mongod --config $MONGO_HOME/rs2.conf --dbpath $MONGO_HOME/rs2 &) | (sed -e 's/^/Mongo #3: /;' &)
 wait
