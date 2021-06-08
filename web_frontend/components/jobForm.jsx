@@ -28,17 +28,28 @@ const JobForm = ({ refetchJobs }) => {
       refetchJobs()
     }
   })
-
-  const { register, handleSubmit, _, errors } = useForm()
+  const { register, handleSubmit, setError, errors } = useForm({
+    mode: 'onBlur'
+  })
   console.log({ errors })
-  const onSubmit = (data) => {
+  const onSubmit = async (data) => {
     removeEmptyFields(data)
     try {
-      createJob({
+      const result = await createJob({
         variables: {
           input: data
         }
       })
+      console.log({ result })
+      if (result.data.createJob.errors) {
+        const { errors } = result.data.createJob
+        errors.forEach(error => {
+          console.log('Setting', error)
+          setError(error.field, { message: error.message })
+          console.log(errors)
+        })
+      }
+      console.log(result)
     } catch (e) {
       console.log(e)
     }
@@ -71,7 +82,7 @@ const JobForm = ({ refetchJobs }) => {
         name="schedule.interval"
         type="number"
         placeholder={1}
-        ref={register({ valueAsNumber: true, required: true, min: 300 })}
+        ref={register({ valueAsNumber: true, required: true, min: 10 })}
       />
         {errors?.schedule?.interval && (<p style={{ color: 'red' }}>miniumum is 300 seconds</p>)}
       <br></br>

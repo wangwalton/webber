@@ -31,6 +31,8 @@ var responseCollection *mongo.Collection
 var hostIP = getIP()
 
 func main() {
+	println("123")
+	println("123")
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
