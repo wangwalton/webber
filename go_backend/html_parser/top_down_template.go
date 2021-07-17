@@ -1,7 +1,6 @@
 package html_parser
 
 import (
-	"fmt"
 	"github.com/wangwalton/webber/go_backend/util"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
@@ -17,9 +16,26 @@ type TemplateNode struct {
 	Tag atom.Atom
 }
 
-type TablularData []map[string]string
+type Template struct {
+	node  *TemplateNode
+	score int
+}
 
-func TopDownExtract(r io.Reader) []TablularData {
+type ExtractOptions struct {
+	includeHtml  bool `json:include_html`
+	maxNumTables int  `json:max_num_tables`
+}
+
+var defaultExtractOptions = &ExtractOptions{
+	includeHtml:  true,
+	maxNumTables: 10,
+}
+
+func TopDownExtract(r io.Reader, options *ExtractOptions) []Table {
+	if options == nil {
+		options = defaultExtractOptions
+	}
+
 	root, err := html.Parse(r)
 	HtmlToString(root)
 
@@ -53,19 +69,7 @@ func TopDownExtract(r io.Reader) []TablularData {
 		return filteredTemplates[i].score > filteredTemplates[j].score
 	})
 
-	templateDiffs := make([]TablularData, 0)
-	for i, template := range filteredTemplates {
-		diffs := template.node.ExtractDiffs()
-		templateDiffs = append(templateDiffs, DiffsToCSV(diffs))
-
-		for node, _ := range template.node.Nodes {
-			WriteHTML(node.Parent, fmt.Sprintf("tmp/%d.html", i))
-			break
-		}
-		if i > 5 {
-			break
-		}
-	}
+	templateDiffs := templatesToTables(filteredTemplates, defaultExtractOptions)
 
 	return templateDiffs
 }
@@ -255,153 +259,4 @@ func (t *TemplateNode) GetScore() int {
 		}
 	}
 	return score
-}
-
-type DiffElementType uint32
-
-const (
-	Text DiffElementType = iota
-	Attr
-)
-
-type DiffElement struct {
-	Values  map[*html.Node]string
-	Type    DiffElementType
-	AttrKey string
-}
-
-func (t *TemplateNode) ExtractDiffs() []DiffElement {
-	diffs := make([]DiffElement, 0)
-
-	var f func(*TemplateNode)
-	f = func(template *TemplateNode) {
-		if len(template.Nodes) < 2 {
-			return
-		}
-
-		if template.dataIsDifferent() {
-			diffs = append(diffs, DiffElement{
-				Values: template.extractText(),
-				Type:   Text,
-			})
-		}
-		diffs = append(diffs, template.extractAttributeDiffs()...)
-
-	}
-
-	PreOrderTemplateNodeTraversal(t, f)
-	return diffs
-}
-
-func (t *TemplateNode) dataIsDifferent() bool {
-	var textValue string
-	isFirst := true
-	for node, _ := range t.Nodes {
-		if isFirst {
-			textValue = node.Data
-			isFirst = false
-		}
-		if node.Data != textValue {
-			return true
-		}
-	}
-	return false
-}
-
-func (t *TemplateNode) extractText() map[*html.Node]string {
-	res := make(map[*html.Node]string)
-	for node, localRoot := range t.Nodes {
-		res[localRoot] = node.Data
-	}
-	return res
-}
-
-func (t *TemplateNode) extractAttributeDiffs() []DiffElement {
-	attributes := make(map[string]map[string][]*html.Node) // map[attr.Key][attr.Val][]*html.Node
-	for node, localRoot := range t.Nodes {
-		for _, attr := range node.Attr {
-			if _, exists := attributes[attr.Key]; !exists {
-				attributes[attr.Key] = map[string][]*html.Node{
-					attr.Val: {localRoot},
-				}
-			} else {
-				if _, exists := attributes[attr.Key][attr.Val]; !exists {
-					attributes[attr.Key][attr.Val] = append(attributes[attr.Key][attr.Val], localRoot)
-				}
-			}
-		}
-	}
-
-	diffs := make([]DiffElement, 0)
-	for attrKey, attrValMap := range attributes {
-		if len(attrValMap) > 1 {
-			diffs = append(diffs, DiffElement{
-				Values:  invert(attrValMap),
-				Type:    Attr,
-				AttrKey: attrKey,
-			})
-		}
-	}
-	return diffs
-}
-
-func invert(attrValMap map[string][]*html.Node) map[*html.Node]string {
-	diffElement := make(map[*html.Node]string)
-	for attrVal, localRoots := range attrValMap {
-		for _, localRoot := range localRoots {
-			diffElement[localRoot] = attrVal
-		}
-	}
-	return diffElement
-}
-
-type Template struct {
-	node  *TemplateNode
-	score int
-}
-
-func DiffsToCSV(diffs []DiffElement) TablularData {
-	nodeDiffs := make(map[string]map[string]string)
-	for _, diff := range diffs {
-		var columnName string
-		if diff.Type == Text {
-			columnName = fmt.Sprintf("%p", &diff)
-		} else {
-			columnName = fmt.Sprintf("%s-%p", diff.AttrKey, &diff)
-		}
-
-		for node, value := range diff.Values {
-			nodeStr := fmt.Sprintf("%p", node)
-			if _, exists := nodeDiffs[nodeStr]; !exists {
-				nodeDiffs[nodeStr] = make(map[string]string)
-			}
-			nodeDiffs[nodeStr][columnName] = value
-		}
-	}
-
-	tabularDiffs := make(TablularData, 0, len(nodeDiffs))
-	for _, row := range nodeDiffs {
-		if row == nil {
-			continue
-		}
-		tabularDiffs = append(tabularDiffs, row)
-	}
-
-	return tabularDiffs
-}
-
-func PreOrderNodeTraversal(baseNode *html.Node, f func(*html.Node)) {
-	f(baseNode)
-
-	for child := baseNode.FirstChild; child != nil; child = child.NextSibling {
-		PreOrderNodeTraversal(child, f)
-	}
-}
-
-func PreOrderTemplateNodeTraversal(baseNode *TemplateNode, f func(*TemplateNode)) {
-	f(baseNode)
-
-	for _, childTemplate := range baseNode.TemplateChildren {
-		PreOrderTemplateNodeTraversal(childTemplate, f)
-	}
 }

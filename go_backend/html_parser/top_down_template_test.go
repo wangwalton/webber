@@ -235,15 +235,23 @@ func TestExtractTemplatesFromNode2(t *testing.T) {
 	assert.Equal(3, template.GetScore())
 
 	// Test ExtractDiffs
-	diffs := template.ExtractDiffs()
-	assert.Equal(1, len(diffs))
-	diff := diffs[0]
-	assert.Equal(Attr, diff.Type)
-	assert.Equal("res", diff.AttrKey)
+	diffs := template.ExtractDiffs(true)
+	assert.Equal(2, len(diffs))
 
-	assert.Equal("1", diff.Values[body.FirstChild])
-	assert.Equal("12", diff.Values[body.FirstChild.NextSibling])
-	assert.Equal("123", diff.Values[body.LastChild])
+	htmlDiff := diffs[0]
+	assert.Equal(Html, htmlDiff.Type)
+
+	assert.Equal(`<p class="haha" res="1"></p>`, htmlDiff.Values[body.FirstChild])
+	assert.Equal(`<p class="haha" res="12"></p>`, htmlDiff.Values[body.FirstChild.NextSibling])
+	assert.Equal(`<p class="haha" res="123"></p>`, htmlDiff.Values[body.LastChild])
+
+	textDiff := diffs[1]
+	assert.Equal(Attr, textDiff.Type)
+	assert.Equal("res", textDiff.AttrKey)
+
+	assert.Equal("1", textDiff.Values[body.FirstChild])
+	assert.Equal("12", textDiff.Values[body.FirstChild.NextSibling])
+	assert.Equal("123", textDiff.Values[body.LastChild])
 }
 
 func TestExtractTemplatesFromNode3(t *testing.T) {
@@ -272,7 +280,7 @@ func TestExtractTemplatesFromNode3(t *testing.T) {
 	assert.Equal(3, template.GetScore())
 
 	// Test ExtractDiffs
-	diffs := template.ExtractDiffs()
+	diffs := template.ExtractDiffs(false)
 	assert.Equal(1, len(diffs))
 	diff := diffs[0]
 	assert.Equal(Text, diff.Type)

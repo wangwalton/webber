@@ -16,7 +16,7 @@ func toTable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	diff := html_parser.TopDownExtract(r.Body)
+	diff := html_parser.TopDownExtract(r.Body, nil)
 	res, err := json.Marshal(diff)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

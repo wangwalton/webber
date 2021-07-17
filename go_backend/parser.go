@@ -32,7 +32,7 @@ func main() {
 	file, err := os.Open("pages/panel.html")
 	util.PanicIfError(err)
 
-	res := html_parser.TopDownExtract(file)
+	res := html_parser.TopDownExtract(file, true)
 	util.PrintJSON(res)
 	//root, err := html.Parse(file)
 	//html_parser.Clone(root)
