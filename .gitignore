@@ -5,6 +5,8 @@ ops/mongo/logs/*d
 
 .DS_Store
 **/.idea/*
+**/node_modules/
+tmp/
 
 
 go_backend/scraper/scraper

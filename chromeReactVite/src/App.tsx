@@ -1,25 +1,21 @@
 import "ag-grid-community/dist/styles/ag-grid.css";
 import "ag-grid-community/dist/styles/ag-theme-alpine.css";
 import { AgGridReact } from "ag-grid-react";
-import { Tabs } from "antd";
-import "antd/dist/antd.css";
 import axios from "axios";
 import React, { useEffect, useState } from "react";
 import "./App.css";
 import { exampleTables } from "./resources/table";
 
-const { TabPane } = Tabs;
+const IS_CHROME = import.meta.env.PROD;
 
-const IS_CHROME = false;
-
-function removeElements(elements) {
+function removeElements(elements : any) {
   let i = elements.length;
   while (i--) {
     elements[i].parentNode.removeChild(elements[i]);
   }
 }
 
-export function stripHtml(s) {
+export function stripHtml(s: any) {
   const div = document.createElement("div");
   div.innerHTML = s;
   removeElements(div.getElementsByTagName("style"));
@@ -29,7 +25,7 @@ export function stripHtml(s) {
   return div.innerHTML;
 }
 
-export function getElementDimensions(htmlString) {
+export function getElementDimensions(htmlString : any) {
   const div = document.createElement("div");
 
   div.style.position = "absolute";
@@ -55,7 +51,7 @@ const RawCell = ({ value }: { value: string }) => {
   );
 };
 
-const Table = ({ data, columns }) => {
+const Table = ({ data, columns } : { data: any, columns:any }) => {
   const [gridApi, setGridApi] = useState(null);
 
   const onGridReady = (params: any) => {
@@ -74,8 +70,8 @@ const Table = ({ data, columns }) => {
     //   autoHeight: true,
     // },
   ];
-  const columnNames: string[] = columns.map((column) => column.name);
-  columns.forEach((column) => {
+  const columnNames: string[] = columns.map((column : any) => column.name);
+  columns.forEach((column : any) => {
     const { name, score } = column;
     if (name !== "nodeHtml") {
       columnDefs.push({ headerName: `${name} score: ${score}`, field: name });
@@ -83,7 +79,7 @@ const Table = ({ data, columns }) => {
   });
   console.log(data);
 
-  const getRowHeight = (params) => {
+  const getRowHeight = (params : any) => {
     const [width, height] = getElementDimensions(params.data.nodeHtml);
     console.log(width, height);
     return height;
@@ -91,7 +87,7 @@ const Table = ({ data, columns }) => {
 
   return (
     <>
-      <div className="ag-theme-alpine" style={{ height: 800, width: 1000 }}>
+      <div className="ag-theme-alpine" style={{ height: 800, width: 1000, paddingBottom: 28}}>
         <AgGridReact
           frameworkComponents={{
             rawCell: RawCell,
@@ -103,7 +99,7 @@ const Table = ({ data, columns }) => {
         />
       </div>
       <button style={{ float: "right" }} onClick={() => onBtnExport()}>
-        Download CSVAfefefewwefs
+        Download CSV
       </button>
     </>
   );
@@ -154,11 +150,11 @@ export const App = () => {
   return (
     <div className="App">
       <header className="App-header">
-        <button onClick={getStructuredData}>Invokes</button>
+        <button onClick={getStructuredData}>Execute on Current Page</button>
 
-          {tables.map((table) => (
-              <Table {...table} />
-          ))}
+        {tables.map((table) => (
+          <Table {...table} />
+        ))}
       </header>
     </div>
   );
