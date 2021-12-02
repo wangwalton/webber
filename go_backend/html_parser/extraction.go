@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/wangwalton/webber/go_backend/util"
 	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 	"sort"
 	"strconv"
 )
@@ -21,8 +22,11 @@ type Tables struct {
 }
 
 type Table struct {
-	Name string `json:"name"`
-	Data []Row  `json:"data"`
+	Name    string `json:"name"`
+	Data    []Row  `json:"data"`
+	Path    string `json:"path"`
+	Score   int    `json:"score"`
+	RawHtml string `json:"raw_html""`
 
 	Columns []*Column `json:"columns"`
 }
@@ -30,12 +34,18 @@ type Table struct {
 type Row map[string]string
 
 type Column struct {
+	// TODO: Some of these fields can be aggregated into one
 	Values  map[*html.Node]string `json:"-"` // map[localRoot]value
 	Type    DiffElementType       `json:"-"`
 	AttrKey string                `json:"-"`
 
+	RelativePath string `json:"relative_path"`
+
 	Name  string  `json:"name""`
 	Score float64 `json:"score"`
+
+	collectableDiffContext *CollectableDiffContext `json:"-"`
+	lastNodeDiffContext    LastNodeDiffContext     `json:"-"`
 }
 
 func templatesToTables(filteredTemplates []Template, options *ExtractOptions) []Table {
@@ -43,6 +53,11 @@ func templatesToTables(filteredTemplates []Template, options *ExtractOptions) []
 	for i, template := range filteredTemplates {
 		diffs := template.node.ExtractDiffs(options.includeHtml)
 		table := diffsToTable(diffs, strconv.Itoa(i))
+
+		table.Score = len(table.Data) * len(table.Columns)
+		table.Path = template.path
+		table.RawHtml = template.rawHtml
+
 		templateDiffs = append(templateDiffs, *table)
 
 		if i > options.maxNumTables {
@@ -50,6 +65,21 @@ func templatesToTables(filteredTemplates []Template, options *ExtractOptions) []
 		}
 	}
 	return templateDiffs
+}
+
+type CollectableDiffContext struct {
+	depth int32
+	path  string
+
+	inHeadingTag bool
+	headingLevel int8
+	inATag       bool
+	inList       bool
+}
+
+type LastNodeDiffContext struct {
+	inHref     bool
+	isTextNode bool
 }
 
 func (t *TemplateNode) ExtractDiffs(includeHtml bool) []*Column {
@@ -69,24 +99,60 @@ func (t *TemplateNode) ExtractDiffs(includeHtml bool) []*Column {
 		diffs = append(diffs, html)
 	}
 
-	var f func(*TemplateNode)
-	f = func(template *TemplateNode) {
+	var f func(*TemplateNode, *CollectableDiffContext)
+	f = func(template *TemplateNode, ctx *CollectableDiffContext) {
 		if len(template.Nodes) < 2 {
 			return
 		}
 
-		if template.dataIsDifferent() {
+		// Only compare text nodes that are different
+		if template.Tag == 0 && template.dataIsDifferent() {
 			diffs = append(diffs, &Column{
-				Values: template.extractText(),
-				Type:   Text,
+				Values:                 template.extractText(),
+				Type:                   Text,
+				RelativePath:           ctx.path,
+				collectableDiffContext: ctx,
+				lastNodeDiffContext:    LastNodeDiffContext{
+					isTextNode: true,
+				},
 			})
 		}
-		diffs = append(diffs, template.extractAttributeDiffs()...)
-
+		diffs = append(diffs, template.extractAttributeDiffs(ctx)...)
 	}
 
-	PreOrderTemplateNodeTraversal(t, f)
+	PreOrderTemplateNodeTraversal(t, CollectableDiffContext{}, f)
 	return diffs
+}
+
+func updateCollectableDiffContext(template *TemplateNode, ctx *CollectableDiffContext) {
+	if template.Tag == atom.H1 {
+		ctx.inHeadingTag = true
+		ctx.headingLevel = 1
+
+	} else if template.Tag == atom.H2 {
+		ctx.inHeadingTag = true
+		ctx.headingLevel = 2
+
+	} else if template.Tag == atom.H3 {
+		ctx.inHeadingTag = true
+		ctx.headingLevel = 3
+
+	} else if template.Tag == atom.H4 {
+		ctx.inHeadingTag = true
+		ctx.headingLevel = 4
+
+	} else if template.Tag == atom.H5 {
+		ctx.inHeadingTag = true
+		ctx.headingLevel = 5
+	}
+
+	if template.Tag == atom.A {
+		ctx.inATag = true
+	}
+
+	if template.Tag == atom.Ul || template.Tag == atom.Ol {
+		ctx.inList = true
+	}
 }
 
 func (t *TemplateNode) dataIsDifferent() bool {
@@ -163,15 +229,44 @@ func (t *Table) initSchema(diffs []*Column) {
 var uniquenessWeight float64 = 1.0
 var stdWeight float64 = 1.0
 
+//type LastNodeDiffContext struct {
+//	inHref     bool
+//	isTextNode bool
+//}
+
 func (c *Column) calculateScore(numRows int) {
 	if c.Type == Html {
 		c.Score = 0
 		return
 	}
+
+	heuristicsScore := int32(0)
+
+	ctx := c.collectableDiffContext
+	heuristicsScore -= ctx.depth / 2
+	if ctx.inHeadingTag {
+		heuristicsScore = heuristicsScore + 7 - int32(ctx.headingLevel) // Invert i.e. H1 is worth 6 points
+	}
+	if ctx.inATag {
+		heuristicsScore += 5
+	}
+	if ctx.inList {
+		heuristicsScore += 3
+	}
+
+	lastCtx := c.lastNodeDiffContext
+	if lastCtx.isTextNode {
+		heuristicsScore += 10
+	}
+	if lastCtx.inHref {
+		heuristicsScore += 1
+	}
+
+
 	uniqueness := c.calculateUniqueness(numRows)
 	std := c.calculateNormalizedStandardDeviation()
 
-	c.Score = uniquenessWeight*uniqueness + stdWeight*std
+	c.Score = float64(heuristicsScore) + uniquenessWeight*uniqueness + stdWeight*std
 }
 
 func (column *Column) calculateUniqueness(numRows int) float64 {
@@ -202,10 +297,13 @@ func getColumnName(diff *Column) string {
 	}
 }
 
-func (t *TemplateNode) extractAttributeDiffs() []*Column {
+func (t *TemplateNode) extractAttributeDiffs(ctx *CollectableDiffContext) []*Column {
 	attributes := make(map[string]map[string][]*html.Node) // map[attr.Key][attr.Val][]localRoot
 	for node, localRoot := range t.Nodes {
 		for _, attr := range node.Attr {
+			if attr.Key == "class" {
+				continue
+			}
 			if _, exists := attributes[attr.Key]; !exists {
 				attributes[attr.Key] = map[string][]*html.Node{
 					attr.Val: {localRoot},
@@ -222,9 +320,13 @@ func (t *TemplateNode) extractAttributeDiffs() []*Column {
 	for attrKey, attrValMap := range attributes {
 		if len(attrValMap) > 1 {
 			diffs = append(diffs, &Column{
-				Values:  invert(attrValMap),
-				Type:    Attr,
-				AttrKey: attrKey,
+				Values:                 invert(attrValMap),
+				Type:                   Attr,
+				AttrKey:                attrKey,
+				collectableDiffContext: ctx,
+				lastNodeDiffContext:    LastNodeDiffContext{
+					inHref:     attrKey == "href",
+				},
 			})
 		}
 	}

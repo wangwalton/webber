@@ -1,6 +1,7 @@
 package html_parser
 
 import (
+	"bytes"
 	"github.com/wangwalton/webber/go_backend/util"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
@@ -10,14 +11,18 @@ import (
 )
 
 type TemplateNode struct {
+	// TODO: why does this need a mapping?
 	Nodes            map[*html.Node]*html.Node // map[child node]localRoot node
-	TemplateChildren []*TemplateNode
+	 TemplateChildren []*TemplateNode
 
 	Tag atom.Atom
 }
 
 type Template struct {
 	node  *TemplateNode
+
+	path  string
+	rawHtml string
 	score int
 }
 
@@ -31,6 +36,9 @@ var defaultExtractOptions = &ExtractOptions{
 	maxNumTables: 10,
 }
 
+// TopDownExtract
+// 1. Ranks Templates
+// 2. Extracts out diffs from templates
 func TopDownExtract(r io.Reader, options *ExtractOptions) []Table {
 	if options == nil {
 		options = defaultExtractOptions
@@ -43,7 +51,7 @@ func TopDownExtract(r io.Reader, options *ExtractOptions) []Table {
 	util.PanicIfError(err)
 
 	globalTemplates := make([]Template, 0)
-	f := func(node *html.Node) {
+	f := func(node *html.Node, path string) {
 		if node.DataAtom == atom.Html {
 			println("break")
 		}
@@ -53,10 +61,12 @@ func TopDownExtract(r io.Reader, options *ExtractOptions) []Table {
 			globalTemplates = append(globalTemplates, Template{
 				node:  template,
 				score: template.GetScore(),
+				path:  path,
+				rawHtml: renderNode(node),
 			})
 		}
 	}
-	PreOrderNodeTraversal(root, f)
+	PreOrderNodeTraversal(root, "", f)
 
 	filteredTemplates := make([]Template, 0)
 	for _, template := range globalTemplates {
@@ -68,14 +78,17 @@ func TopDownExtract(r io.Reader, options *ExtractOptions) []Table {
 	sort.Slice(filteredTemplates, func(i, j int) bool {
 		return filteredTemplates[i].score > filteredTemplates[j].score
 	})
-
 	templateDiffs := templatesToTables(filteredTemplates, defaultExtractOptions)
+
+	sort.Slice(templateDiffs, func(i, j int) bool {
+		return templateDiffs[i].Score > templateDiffs[j].Score
+	})
 
 	return templateDiffs
 }
 
-// Not a template unless it has two nodes
 func ExtractTemplatesFromNode(node *html.Node) []*TemplateNode {
+	// Not a template unless it has two nodes
 	if node.FirstChild == nil || node.FirstChild == node.LastChild {
 		return nil
 	}
@@ -259,4 +272,11 @@ func (t *TemplateNode) GetScore() int {
 		}
 	}
 	return score
+}
+
+func renderNode(n *html.Node) string {
+	var buf bytes.Buffer
+	w := io.Writer(&buf)
+	html.Render(w, n)
+	return buf.String()
 }

@@ -8,6 +8,8 @@ import (
 	"net/http"
 )
 
+var isDev bool = true
+
 func toTable(w http.ResponseWriter, r *http.Request) {
 	log.Info().Msg("Received request")
 
@@ -18,6 +20,10 @@ func toTable(w http.ResponseWriter, r *http.Request) {
 
 	diff := html_parser.TopDownExtract(r.Body, nil)
 	res, err := json.Marshal(diff)
+	if isDev {
+		res, err = json.MarshalIndent(diff, "", "  ")
+	}
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

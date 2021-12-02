@@ -1,21 +1,26 @@
-import "ag-grid-community/dist/styles/ag-grid.css";
-import "ag-grid-community/dist/styles/ag-theme-alpine.css";
 import { AgGridReact } from "ag-grid-react";
 import axios from "axios";
 import React, { useEffect, useState } from "react";
 import "./App.css";
 import { exampleTables } from "./resources/table";
+import AntDTable from "./components/table/AntdTable";
+import { TableType } from "./types/StructuredData";
+import AdminAgGridTable from "./components/table/AdminAgGridTable";
+import { Button, Pagination } from "antd";
+import "antd/dist/antd.css";
+import UserAgGridTable from "./components/table/UserAgGridTable";
 
 const IS_CHROME = import.meta.env.PROD;
+console.log({ IS_CHROME });
 
-function removeElements(elements : any) {
+function removeElements(elements: any) {
   let i = elements.length;
   while (i--) {
     elements[i].parentNode.removeChild(elements[i]);
   }
 }
 
-export function stripHtml(s: any) {
+function stripHtml(s: any) {
   const div = document.createElement("div");
   div.innerHTML = s;
   removeElements(div.getElementsByTagName("style"));
@@ -25,7 +30,7 @@ export function stripHtml(s: any) {
   return div.innerHTML;
 }
 
-export function getElementDimensions(htmlString : any) {
+function getElementDimensions(htmlString: any) {
   const div = document.createElement("div");
 
   div.style.position = "absolute";
@@ -51,7 +56,7 @@ const RawCell = ({ value }: { value: string }) => {
   );
 };
 
-const Table = ({ data, columns } : { data: any, columns:any }) => {
+const Table = ({ data, columns }: { data: any; columns: any }) => {
   const [gridApi, setGridApi] = useState(null);
 
   const onGridReady = (params: any) => {
@@ -70,16 +75,18 @@ const Table = ({ data, columns } : { data: any, columns:any }) => {
     //   autoHeight: true,
     // },
   ];
-  const columnNames: string[] = columns.map((column : any) => column.name);
-  columns.forEach((column : any) => {
+  const columnNames: string[] = columns.map((column: any) => column.name);
+  columns.forEach((column: any) => {
     const { name, score } = column;
     if (name !== "nodeHtml") {
-      columnDefs.push({ headerName: `${name} score: ${score}`, field: name });
+      columnDefs.push({
+        headerName: `score: ${score.toFixed(2)} ${name}`,
+        field: name,
+      });
     }
   });
-  console.log(data);
 
-  const getRowHeight = (params : any) => {
+  const getRowHeight = (params: any) => {
     const [width, height] = getElementDimensions(params.data.nodeHtml);
     console.log(width, height);
     return height;
@@ -87,7 +94,13 @@ const Table = ({ data, columns } : { data: any, columns:any }) => {
 
   return (
     <>
-      <div className="ag-theme-alpine" style={{ height: 800, width: 1000, paddingBottom: 28}}>
+      <div
+        className="ag-theme-alpine"
+        style={{ height: 800, width: 1000, paddingBottom: 28 }}
+      >
+        <button style={{ float: "right" }} onClick={() => onBtnExport()}>
+          Download CSV
+        </button>
         <AgGridReact
           frameworkComponents={{
             rawCell: RawCell,
@@ -98,25 +111,44 @@ const Table = ({ data, columns } : { data: any, columns:any }) => {
           getRowHeight={getRowHeight}
         />
       </div>
-      <button style={{ float: "right" }} onClick={() => onBtnExport()}>
-        Download CSV
-      </button>
     </>
   );
 };
 
-export const App = () => {
-  const [tables, setTables] = useState([]);
+const BodyPlayground = ({ setTables }: { setTables: any }) => {
+  const [body, setBody] = useState<string>("");
+  console.log({ setTables });
+
+  const submitBody = async () => {
+    const response = await axios.post("http://localhost:8080/toTable", body);
+    console.log({ response });
+    setTables(response.data);
+  };
+  return (
+    <>
+      <textarea
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        style={{ height: 300, width: 400 }}
+      ></textarea>
+
+      <button onClick={submitBody}>Submit</button>
+    </>
+  );
+};
+
+const App = () => {
+  const [tables, setTables] = useState<TableType[]>([]);
 
   const setupChromeListener = () => {
-    const getTable = async (html: string) => {
-      const resp = await axios.post("http://localhost:8080/toTable", html);
-      return resp.data;
-    };
-
     const getTableWrapper = async (html: string) => {
+      const getTable = async (html: string) => {
+        const resp = await axios.post("http://localhost:8080/toTable", html);
+        return resp.data;
+      };
+
       const tables = await getTable(html);
-      // setTables(tables);
+      setTables(tables);
     };
 
     chrome.runtime.onMessage.addListener(function (request, sender) {
@@ -126,11 +158,9 @@ export const App = () => {
     });
   };
 
-  useEffect(() => {
-    if (IS_CHROME) {
-      setupChromeListener();
-    }
-  }, []);
+  if (IS_CHROME) {
+    useEffect(setupChromeListener, []);
+  }
 
   const getStructuredData = async () => {
     if (IS_CHROME) {
@@ -141,20 +171,32 @@ export const App = () => {
         () => {}
       );
     } else {
-      const tables = exampleTables;
-      // @ts-ignore
-      setTables(tables);
+      setTables(exampleTables);
     }
   };
+  console.log({ tables });
 
+  const [page, setPage] = useState<number>(1);
   return (
     <div className="App">
       <header className="App-header">
-        <button onClick={getStructuredData}>Execute on Current Page</button>
+        <Button onClick={getStructuredData} type="primary">
+          Execute on Current Page
+        </Button>
+        {tables.length > 1 && (
+          <>
+            <Pagination
+              current={page}
+              onChange={setPage}
+              total={tables.length}
+              style={{ paddingTop: 32 }}
+            />
+            <UserAgGridTable table={tables[page - 1]} />
+          </>
+        )}
 
-        {tables.map((table) => (
-          <Table {...table} />
-        ))}
+        {/*<BodyPlayground setTables={setTables} />*/}
+        {/*{tables.length > 1 && <AdminAgGridTable table={tables[page - 1]} />}*/}
       </header>
     </div>
   );
